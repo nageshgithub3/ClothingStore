@@ -33,15 +33,6 @@ const Checkout = () => {
         return true;
     };
 
-    const loadRazorpay = () => {
-        return new Promise((resolve) => {
-            const script = document.createElement('script');
-            script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-            script.onload = () => resolve(true);
-            script.onerror = () => resolve(false);
-            document.body.appendChild(script);
-        });
-    };
 
     const placeOrder = async () => {
         if (!isAuthenticated) {
@@ -67,57 +58,10 @@ const Checkout = () => {
             // 1. Create Internal Order
             const { data: order } = await API.post('/orders', orderData);
 
-            if (paymentMethod === 'Razorpay') {
-                // 2. Load Razorpay Script
-                const res = await loadRazorpay();
-                if (!res) {
-                    toast.error('Razorpay SDK failed to load. Are you online?');
-                    setLoading(false);
-                    return;
-                }
-
-                // 3. Create Razorpay Order
-                const { data: razorOrder } = await API.post('/orders/razorpay', { amount: total });
-
-                // 4. Open Razorpay SDK
-                const options = {
-                    key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_1234567890',
-                    amount: razorOrder.amount,
-                    currency: razorOrder.currency,
-                    name: 'UrbanWeave',
-                    description: 'Fashion Purchase',
-                    order_id: razorOrder.id,
-                    handler: async function (response) {
-                        try {
-                            const verifyData = {
-                                razorpay_order_id: response.razorpay_order_id,
-                                razorpay_payment_id: response.razorpay_payment_id,
-                                razorpay_signature: response.razorpay_signature,
-                                orderId: order._id
-                            };
-                            await API.post('/orders/verify', verifyData);
-                            clearCart();
-                            toast.success('Payment successful!');
-                            navigate('/dashboard/orders');
-                        } catch (error) {
-                            toast.error('Payment verification failed. Please contact support.');
-                        }
-                    },
-                    prefill: {
-                        name: address.fullName,
-                        contact: address.phone
-                    },
-                    theme: { color: '#0a0a0a' }
-                };
-
-                const paymentObject = new window.Razorpay(options);
-                paymentObject.open();
-            } else {
-                // COD Flow
-                clearCart();
-                toast.success('Order placed successfully!');
-                navigate(`/dashboard/orders`);
-            }
+            // COD / UPI Flow
+            clearCart();
+            toast.success('Order placed successfully!');
+            navigate(`/dashboard/orders`);
         } catch (error) {
             toast.error(error.response?.data?.message || 'Failed to place order');
         } finally {
@@ -202,7 +146,6 @@ const Checkout = () => {
                                 <div className="payment-options">
                                     {[
                                         { value: 'COD', label: 'Cash on Delivery', desc: 'Pay when you receive' },
-                                        { value: 'Razorpay', label: 'Razorpay', desc: 'Cards, UPI, Net Banking' },
                                         { value: 'UPI', label: 'UPI Payment', desc: 'Google Pay, PhonePe, Paytm' }
                                     ].map(option => (
                                         <label key={option.value} className={`payment-option ${paymentMethod === option.value ? 'active' : ''}`}>
